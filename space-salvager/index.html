@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Salvager</title>
+  <style>
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: black;
+    }
+  </style>
+</head>
+<body>
+  <audio id="captureSound" src="capture.mp3" preload="auto"></audio>
+  <audio id="collisionSound" src="collision.mp3" preload="auto"></audio>
+  <audio id="gameOverSound" src="gameover.mp3" preload="auto"></audio>
+
+  <canvas id="gameCanvas" width="800" height="800"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+
+
+    const G = 1; // 重力定数
+    const M = 100; // 中心星の質量
+    const CENTRAL_STAR_RADIUS = 15; // 中心星の半径
+    const CAPTURE_SPEED_THRESHOLD = 0.8; // デブリ捕獲時の相対速度の閾値
+    const DAMAGE_AMOUNT = 10; // 衝突時に自機が受けるダメージ
+    const CENTRAL_STAR_DAMAGE_AMOUNT = 100; // 星に衝突時に自機が受けるダメージ
+    const INITIAL_PROPELLANT = 2000; // 推進剤初期値
+    const NUM_DEBRIS = 100;
+    const TIME_LIMIT = 300 * 1000; // 時間制限 (300秒 * 1000ミリ秒)
+    const SPACESHIP_RADIUS = 15;
+    const SPACESHIP_HEALTH = 100;
+
+    const PLAYER_STARTING_POSITION = { x: -580, y: 0 };
+    const PLAYER_STARTING_ANGLE = Math.PI / 2;
+
+    class SpaceObject {
+      constructor(x, y, radius) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(center.x + this.x * scale, center.y + this.y * scale, this.radius * scale, 0, 2 * Math.PI);
+        ctx.fillStyle = 'cyan';
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    // 中心に星を置く
+    const centralStar = new SpaceObject(0, 0, CENTRAL_STAR_RADIUS);
+
+    const playerDistance = Math.sqrt(Math.pow(PLAYER_STARTING_POSITION.x - centralStar.x, 2) + Math.pow(PLAYER_STARTING_POSITION.y - centralStar.y, 2));
+    const playerOrbitalVelocity = Math.sqrt(G * M / playerDistance);
+    const playerStartingVelocity = {
+      x: Math.cos(PLAYER_STARTING_ANGLE) * playerOrbitalVelocity,
+      y: Math.sin(PLAYER_STARTING_ANGLE) * playerOrbitalVelocity,
+    };
+ 
+
+    // 効果音
+    const captureSound = document.getElementById('captureSound');
+    const collisionSound = document.getElementById('collisionSound');
+    const collisionSoundSrc = "collision.mp3";
+    const captureSoundSrc = "capture.mp3";
+
+
+
+    class Spaceship {
+      constructor(x, y, angle, velocity) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        // Create a copy of the velocity object
+        this.velocity = { x: velocity.x, y: velocity.y };
+        this.radius = SPACESHIP_RADIUS; // 当たり判定用半径
+        this.health = SPACESHIP_HEALTH; // ダメージ初期値
+        this.collided = false; // 追加
+        this.collidedWithCentralStar = false; // 星と衝突しているか
+        this.propellant = INITIAL_PROPELLANT; // 推進剤
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(center.x + this.x * scale, center.y + this.y * scale);
+        ctx.rotate(this.angle);
+        ctx.beginPath();
+        ctx.moveTo(-10 * scale, -10 * scale);
+        ctx.lineTo(15 * scale, 0 * scale);
+        ctx.lineTo(-10 * scale, 10 * scale);
+        ctx.lineTo(-5 * scale, 0 * scale);
+        ctx.closePath();
+        ctx.fillStyle = this.collided ? 'red' : 'white';
+        ctx.fill();
+        ctx.restore();
+        this.collided = false; // Reset the collided flag after drawing
+      }
+
+      update() {
+        this.x += this.velocity.x;
+        this.y += this.velocity.y;
+
+        const dx = centralStar.x - this.x;
+        const dy = centralStar.y - this.y;
+        const distanceSq = dx * dx + dy * dy;
+        const distance = Math.sqrt(distanceSq);
+        const acceleration = G * M / distanceSq;
+
+        this.velocity.x += (dx / distance) * acceleration;
+        this.velocity.y += (dy / distance) * acceleration;
+
+        // 星からの距離の対数をとってscaleを変える
+        scale = 1 / Math.pow(1.4,Math.floor((Math.log(distance / 250)/Math.log(1.4))));
+        if (scale > 1) {
+          scale = 1;
+        }
+      }
+    }
+
+    function createIrregularPolygon(sides, radius, irregularity) {
+      const angleStep = (2 * Math.PI) / sides;
+      const points = [];
+      for (let i = 0; i < sides; i++) {
+        const angle = angleStep * i;
+        const distance = radius + Math.random() * irregularity;
+        const x = distance * Math.cos(angle);
+        const y = distance * Math.sin(angle);
+        points.push({ x, y });
+      }
+      return points;
+    }
+
+
+    class Debris {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.radius = 2;
+            this.angle = Math.random() * 2 * Math.PI; // ランダムな角度
+            this.points = createIrregularPolygon(6, this.radius, 10); // 6角形の不規則な多角形
+            
+        }
+
+        draw() {
+            const relativeDistanceX = player.x - this.x;
+            const relativeDistanceY = player.y - this.y;
+            const relativeDistance = Math.sqrt(relativeDistanceX * relativeDistanceX + relativeDistanceY * relativeDistanceY);
+
+            const relativeVelocityX = player.velocity.x - this.velocity.x;
+            const relativeVelocityY = player.velocity.y - this.velocity.y;
+            const relativeSpeed = Math.sqrt(
+                relativeVelocityX * relativeVelocityX + relativeVelocityY * relativeVelocityY
+            );
+
+            const nearDangerSpeedThreshold = CAPTURE_SPEED_THRESHOLD * 0.8;
+
+            ctx.save();
+            ctx.translate(center.x + this.x * scale, center.y + this.y * scale);
+            ctx.rotate(this.angle);
+            ctx.beginPath();
+            ctx.moveTo(this.points[0].x * scale, this.points[0].y * scale);
+            for (let i = 1; i < this.points.length; i++) {
+              ctx.lineTo(this.points[i].x * scale, this.points[i].y * scale);
+            }
+            ctx.closePath();
+
+            // 自機から遠いと白、相対速度が捕獲不可は赤、可能だが危険寄りは黃、捕獲可能は緑
+            if (relativeDistance > 250) {
+              ctx.fillStyle = 'white';
+            } else if (relativeSpeed < nearDangerSpeedThreshold) {
+              ctx.fillStyle = 'green';
+            } else if (relativeSpeed < CAPTURE_SPEED_THRESHOLD) {
+              ctx.fillStyle = 'yellow';
+            } else {
+              ctx.fillStyle = 'red';
+            }
+
+            ctx.fill();
+            ctx.restore();           
+
+          }
+
+        update() {
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+
+            const dx = centralStar.x - this.x;
+            const dy = centralStar.y - this.y;
+            const distanceSq = dx * dx + dy * dy;
+            const distance = Math.sqrt(distanceSq);
+            const acceleration = G * M / distanceSq;
+
+            this.velocity.x += (dx / distance) * acceleration;
+            this.velocity.y += (dy / distance) * acceleration;
+        }
+    }
+
+    function playCollisionSound() {
+      const collisionSound = new Audio(collisionSoundSrc);
+      collisionSound.play();
+    }
+
+    function playCaptureSound() {
+      const captureSound = new Audio(captureSoundSrc);
+      captureSound.play();
+    }
+  
+    function createDebrisList(numDebris) {
+      const debrisList = [];
+      for (let i = 0; i < numDebris; i++) {
+        const angle = 2 * Math.PI * Math.random();
+        const distance = Math.random() *400 + 150;
+        const x = centralStar.x + distance * Math.cos(angle);
+        const y = centralStar.y + distance * Math.sin(angle);
+        const debris = new Debris(x, y);
+
+        const debrisOrbitalVelocity = Math.sqrt(G * M / distance);
+        const direction = (Math.random() < 0.5) ? 1 : -1;
+        debris.velocity = {
+          x: -Math.sin(angle + Math.PI * Math.random() / 8) * debrisOrbitalVelocity * direction,
+          y: Math.cos(angle + Math.PI * Math.random() / 8) * debrisOrbitalVelocity * direction,
+        };
+        debrisList.push(debris);
+      }
+      return debrisList;
+    }
+
+    function updatePlayerInput() {
+      if (keys['ArrowUp']) {
+        if (player.propellant > 0) { // 推進剤がある場合に加速
+          const thrust = 0.03;
+          player.velocity.x += Math.cos(player.angle) * thrust;
+          player.velocity.y += Math.sin(player.angle) * thrust;
+          player.propellant -= 1; // 推進剤を消費
+        }
+      }
+      if (keys['ArrowLeft']) {
+        player.angle -= 0.1;
+      }
+      if (keys['ArrowRight']) {
+        player.angle += 0.1;
+      }
+    }
+
+
+    function checkCollisions() {
+      debrisList.forEach((debris, index) => {
+        const dx = player.x - debris.x;
+        const dy = player.y - debris.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const combinedRadius = player.radius + debris.radius;
+
+        if (distance < combinedRadius) {
+          const relativeVelocityX = player.velocity.x - debris.velocity.x;
+          const relativeVelocityY = player.velocity.y - debris.velocity.y;
+          const relativeSpeed = Math.sqrt(relativeVelocityX * relativeVelocityX + relativeVelocityY * relativeVelocityY);
+
+          if (relativeSpeed < CAPTURE_SPEED_THRESHOLD) {
+//            captureSound.play();
+            playCaptureSound();
+            debrisList.splice(index, 1);
+            capturedDebris++; // デブリ捕獲数をインクリメント
+          } else {
+//            collisionSound.play();
+            playCollisionSound();
+            debrisList.splice(index, 1);
+            player.health -= DAMAGE_AMOUNT;
+            player.collided = true; // Set the collided flag
+            if (player.health <= 0) { // 
+              // ゲームオーバー処理
+              gameOver = true; // Set the game over state
+            }
+          }
+        }
+      });
+    }
+
+    function checkCollisionWithCentralStar() {
+        const dx = player.x - centralStar.x;
+        const dy = player.y - centralStar.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const combinedRadius = player.radius + centralStar.radius;
+
+        if (distance < combinedRadius) {
+            if (!player.collidedWithCentralStar) {
+                player.health -= CENTRAL_STAR_DAMAGE_AMOUNT;
+                player.collided = true;
+                player.collidedWithCentralStar = true;
+                if (player.health <= 0) {
+                    gameOver = true;
+                }
+            }
+        } else {
+            player.collidedWithCentralStar = false;
+        }
+    }
+
+    function checkOutOfTimeOrFuel() {
+      elapsedTime = Date.now() - startTime;
+      if (elapsedTime >= TIME_LIMIT) {
+        // 時間切れの処理
+        gameOver = true;
+      }
+      if (player.propellant <= 0) {
+          // 推進剤切れの処理
+          gameOver = true;
+      }
+    }
+
+    function drawInfomationBar(index, ratio, color, text) {
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(10, index * 30 + 10, 300, 20);
+      ctx.fillStyle = color;
+      ctx.fillRect(10, index * 30 + 10, 300 * ratio, 20);
+      ctx.font = '16px Arial';
+      ctx.fillStyle = 'white';
+      ctx.fillText(text, 20, index * 30 + 26);
+    }
+
+    function drawGameInfo() {
+        drawInfomationBar(0, player.health / SPACESHIP_HEALTH, 'lime', 'Health: ' + player.health);
+        drawInfomationBar(1, player.propellant / INITIAL_PROPELLANT, 'blue', 'Propellant: ' + player.propellant);
+        drawInfomationBar(2, debrisList.length / NUM_DEBRIS, 'orange', 'Remaining Debris: ' + debrisList.length);
+        drawInfomationBar(3, capturedDebris / NUM_DEBRIS, 'green', 'Captured Debris: '+capturedDebris);
+        const remainingTime = Math.max(0, TIME_LIMIT - elapsedTime);
+        const minutes = Math.floor(remainingTime / (1000 * 60));
+        const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+        drawInfomationBar(4, remainingTime / TIME_LIMIT, 'purple', 'Time Left: ' + minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0'));
+
+        if (gameOver) {
+          if (!gameOverSoundPlayed) {
+            gameOverSound.play();
+            gameOverSoundPlayed = true;
+          }
+            ctx.font = '48px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
+            ctx.font = '32px Arial';
+            ctx.fillStyle = 'green';
+            ctx.fillText(`Captured Debris: ${capturedDebris}`, canvas.width / 2 - 100, canvas.height / 2 + 50);
+        }
+    }
+
+    function restartGame() {
+        player.health = 100;
+        player.propellant = INITIAL_PROPELLANT; // 推進剤をリセット
+        player.x = PLAYER_STARTING_POSITION.x;
+        player.y = PLAYER_STARTING_POSITION.y;
+        player.angle = PLAYER_STARTING_ANGLE;
+        player.velocity = { x: playerStartingVelocity.x, y: playerStartingVelocity.y };
+console.log('restart x',playerStartingVelocity.x,' y ',playerStartingVelocity.y);
+//        player.velocity.x = playerStartingVelocity.x;
+//        player.velocity.y = playerStartingVelocity.y;
+        debrisList = createDebrisList(NUM_DEBRIS);
+        gameOver = false;
+        startTime = null;
+      elapsedTime = 0;
+      capturedDebris = 0;
+      gameOverSoundPlayed = false;
+    }    
+
+    const keys = {};
+    document.addEventListener('keydown', (e) => {
+        if (gameOver) {
+            restartGame();
+
+        }else{
+            keys[e.code] = true;
+        }
+    });
+ 
+    document.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    function gameLoop() {
+      if (!startTime) {
+        startTime = Date.now();
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawGameInfo(); // Add this line to draw game info  
+
+      centralStar.draw();
+      player.draw();
+      debrisList.forEach((debris) => debris.draw());
+
+      if (!gameOver) {
+        updatePlayerInput();
+        player.update();
+        debrisList.forEach((debris) => debris.update());
+
+        checkCollisions();
+        checkCollisionWithCentralStar(); // 追加
+        checkOutOfTimeOrFuel();
+
+      } else {
+        drawGameInfo(); // Add this line to draw game info  
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    let gameOverSoundPlayed = false;
+
+    let gameOver = false; // Add a new variable to track the game over state
+
+    let startTime;
+    let elapsedTime;
+    let capturedDebris = 0;
+
+    // 画面表示のスケールと中心座標
+    let scale = 1;
+    let center = {
+      x: 400,
+      y: 400
+    }
+
+    console.log('start x',playerStartingVelocity.x,' y ',playerStartingVelocity.y);
+
+    const player = new Spaceship(PLAYER_STARTING_POSITION.x, PLAYER_STARTING_POSITION.y, PLAYER_STARTING_ANGLE, playerStartingVelocity);
+
+    // デブリを複数作成
+    let debrisList = createDebrisList(NUM_DEBRIS);
+
+
+    gameLoop();
+  </script>
+</body>
+</html>
