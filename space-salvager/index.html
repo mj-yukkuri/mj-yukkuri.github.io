@@ -356,9 +356,6 @@
         player.y = PLAYER_STARTING_POSITION.y;
         player.angle = PLAYER_STARTING_ANGLE;
         player.velocity = { x: playerStartingVelocity.x, y: playerStartingVelocity.y };
-console.log('restart x',playerStartingVelocity.x,' y ',playerStartingVelocity.y);
-//        player.velocity.x = playerStartingVelocity.x;
-//        player.velocity.y = playerStartingVelocity.y;
         debrisList = createDebrisList(NUM_DEBRIS);
         gameOver = false;
         startTime = null;
@@ -380,6 +377,70 @@ console.log('restart x',playerStartingVelocity.x,' y ',playerStartingVelocity.y)
     document.addEventListener('keyup', (e) => {
       keys[e.code] = false;
     });
+
+    // Touch event listeners
+    document.addEventListener('touchstart', handleTouchStart, false);
+    document.addEventListener('touchend', handleTouchEnd, false);
+
+    function handleTouchStart(event) {
+      if (gameOver) {
+        restartGame();
+      } else {
+        const touch = event.touches[0];
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
+
+        // Decide whether to rotate left, right, or thrust based on touch position
+        if (touchX < canvas.width / 3) {
+          keys['ArrowLeft'] = true;
+        } else if (touchX > canvas.width * 2 / 3) {
+          keys['ArrowRight'] = true;
+        } else {
+          keys['ArrowUp'] = true;
+        }
+      }
+    }
+
+    function handleTouchEnd(event) {
+      keys['ArrowLeft'] = false;
+      keys['ArrowRight'] = false;
+      keys['ArrowUp'] = false;
+    }
+
+    function handleTouchStart(event) {
+      if (gameOver) {
+        restartGame();
+      } else {
+        const touch = event.touches[0];
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
+
+        // Decide whether to rotate left, right, or thrust based on touch position
+        if (touchX < canvas.width / 3) {
+          keys['ArrowLeft'] = true;
+        } else if (touchX > canvas.width * 2 / 3) {
+          keys['ArrowRight'] = true;
+        } else {
+          keys['ArrowUp'] = true;
+        }
+      }
+    }
+
+    function handleTouchEnd(event) {
+      keys['ArrowLeft'] = false;
+      keys['ArrowRight'] = false;
+      keys['ArrowUp'] = false;
+    }
+
+    window.addEventListener('resize', resizeCanvas, false);
+    window.addEventListener('DOMContentLoaded', resizeCanvas, false);
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+
 
     function gameLoop() {
       if (!startTime) {
@@ -424,8 +485,6 @@ console.log('restart x',playerStartingVelocity.x,' y ',playerStartingVelocity.y)
       x: 400,
       y: 400
     }
-
-    console.log('start x',playerStartingVelocity.x,' y ',playerStartingVelocity.y);
 
     const player = new Spaceship(PLAYER_STARTING_POSITION.x, PLAYER_STARTING_POSITION.y, PLAYER_STARTING_ANGLE, playerStartingVelocity);
 
