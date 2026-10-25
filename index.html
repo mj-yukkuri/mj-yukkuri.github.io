@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>mj-yukkuri のゲーム</title>
+<meta name="description" content="ブラウザですぐ遊べる自作ゲームの置き場です。">
+<meta property="og:title" content="mj-yukkuri のゲーム">
+<meta property="og:description" content="ブラウザですぐ遊べる自作ゲームの置き場です。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mj-yukkuri.github.io/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+  /* ゲーム棚：見出しのあとに、スクリーンショット付きのカードを2列（スマホは1列）で並べる */
+  :root {
+    --bg: #eef0f5; --surface: #ffffff; --ink: #171a24; --muted: #5e6577; --rule: #d9dce5;
+    --accent: #3d4fd6; --tag: #e4e7f0;
+    --g-board: #1f7a5a; --g-puzzle: #b5541c; --g-action: #6a3dc7;
+    --shadow: rgba(23, 26, 36, .08); --shadow-hover: rgba(23, 26, 36, .16);
+    --font-display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12141b; --surface: #1b1e28; --ink: #e8eaf1; --muted: #9aa1b3; --rule: #2b2f3c;
+      --accent: #8c9bff; --tag: #272b38;
+      --g-board: #5fcf9f; --g-puzzle: #f0a06b; --g-action: #b39cff;
+      --shadow: rgba(0, 0, 0, .35); --shadow-hover: rgba(0, 0, 0, .55);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12141b; --surface: #1b1e28; --ink: #e8eaf1; --muted: #9aa1b3; --rule: #2b2f3c;
+    --accent: #8c9bff; --tag: #272b38;
+    --g-board: #5fcf9f; --g-puzzle: #f0a06b; --g-action: #b39cff;
+    --shadow: rgba(0, 0, 0, .35); --shadow-hover: rgba(0, 0, 0, .55);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.7; }
+  .page { max-width: 1040px; margin: 0 auto; padding-block: 48px 32px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  header { margin-bottom: 36px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(30px, 6vw, 48px); line-height: 1.2;
+    margin: 0 0 8px; letter-spacing: .01em; text-wrap: balance; }
+  h1 .handle { color: var(--accent); }
+  .lead { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .shelf { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+  .card { display: flex; flex-direction: column; height: 100%; background: var(--surface); color: inherit;
+    text-decoration: none; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 3px var(--shadow);
+    transition: transform .18s ease, box-shadow .18s ease; }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px var(--shadow-hover); }
+  .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .shot { aspect-ratio: 4 / 3; max-width: 100%; background: var(--tag); border-bottom: 1px solid var(--rule); overflow: hidden; }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; }
+  .card:hover .shot img { transform: scale(1.03); }
+  .body { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px 20px; flex: 1; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h2 { font-family: var(--font-display); font-weight: 400; font-size: 24px; line-height: 1.3; margin: 0; }
+  .date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .desc { margin: 0; font-size: 14.5px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding: 4px 0 0; list-style: none; }
+  .tags li { font-size: 12px; padding: 2px 10px; border-radius: 999px; background: var(--tag); color: var(--muted); }
+  .tags li.genre { color: var(--surface); font-weight: 700; }
+  .genre.board { background: var(--g-board); }
+  .genre.puzzle { background: var(--g-puzzle); }
+  .genre.action { background: var(--g-action); }
+
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card, .shot img { transition: none; }
+    .card:hover { transform: none; }
+    .card:hover .shot img { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1><span class="handle">mj-yukkuri</span> のゲーム</h1>
+    <p class="lead">ブラウザですぐ遊べる自作ゲームです。インストールは要りません。</p>
+  </header>
+
+  <main>
+    <ul class="shelf">
+      <li>
+        <a class="card" href="/voronoi-hex/">
+          <div class="shot"><img src="thumbs/voronoi-hex.webp" alt="ボロノイ HEX のプレイ画面" width="640" height="480" loading="lazy"></div>
+          <div class="body">
+            <div class="head"><h2>ボロノイ HEX</h2><span class="date">2026.10</span></div>
+            <p class="desc">陣取りゲーム HEX を、毎回ランダムに作るボロノイ図の盤面で。赤は上下、青は左右を自分の色でつなげたら勝ち。</p>
+            <ul class="tags"><li class="genre board">ボードゲーム</li><li>1〜2人・CPU対戦／観戦</li><li>マウス・タッチ</li></ul>
+          </div>
+        </a>
+      </li>
+      <li>
+        <a class="card" href="/baibai-othello/">
+          <div class="shot"><img src="thumbs/baibai-othello.webp" alt="倍々オセロのプレイ画面" width="640" height="480" loading="lazy"></div>
+          <div class="body">
+            <div class="head"><h2>倍々オセロ</h2><span class="date">2026.10</span></div>
+            <p class="desc">ひっくり返されるたびに石の点数が 1→2→4→8… と倍になる変則オセロ。石の数ではなく点数の合計で勝負。</p>
+            <ul class="tags"><li class="genre board">ボードゲーム</li><li>1〜2人・CPU対戦／観戦</li><li>マウス・タッチ</li></ul>
+          </div>
+        </a>
+      </li>
+      <li>
+        <a class="card" href="/kanji-merge/">
+          <div class="shot"><img src="thumbs/kanji-merge.webp" alt="漢字マージのプレイ画面" width="640" height="480" loading="lazy"></div>
+          <div class="body">
+            <div class="head"><h2>漢字マージ</h2><span class="date">2026.10</span></div>
+            <p class="desc">部首や部品のタイルを動かして合体させ、漢字を作っていく2048風のパズル。図鑑に集めた漢字が増えていきます。</p>
+            <ul class="tags"><li class="genre puzzle">パズル</li><li>1人</li><li>矢印キー・スワイプ</li></ul>
+          </div>
+        </a>
+      </li>
+      <li>
+        <a class="card" href="/space-salvager/">
+          <div class="shot"><img src="thumbs/space-salvager.webp" alt="Space Salvager のプレイ画面" width="640" height="480" loading="lazy"></div>
+          <div class="body">
+            <div class="head"><h2>Space Salvager</h2><span class="date">2023.04</span></div>
+            <p class="desc">中心の星の重力に引かれながら宇宙船を操り、軌道を回るデブリを回収する。推進剤と制限時間をやりくりしよう。</p>
+            <ul class="tags"><li class="genre action">アクション</li><li>1人</li><li>矢印キー・タッチ</li></ul>
+          </div>
+        </a>
+      </li>
+    </ul>
+  </main>
+
+  <footer>
+    ソースコードは <a href="https://github.com/mj-yukkuri">GitHub</a> で公開しています。
+  </footer>
+</div>
+</body>
+</html>
